@@ -14,4 +14,4 @@ private:
     CRGB _ledData[1];
     uint8_t _brightness;
     int _diff;
-}
+};

@@ -2,7 +2,7 @@
 
 StatusLed::StatusLed(uint8_t pin) {
     _pin = pin;
-    _ledData[0] CRGB::Black;
+    _ledData[0] = CRGB::Black;
 }
 
 void StatusLed::begin() {
