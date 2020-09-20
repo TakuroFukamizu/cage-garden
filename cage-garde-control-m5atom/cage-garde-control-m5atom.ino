@@ -1,7 +1,11 @@
-#include <M5Atom.h>
-//#include "FastLED.h" // not working with M5Atom
-//#include <NeoPixelBrightnessBus.h>
+//#include <M5Atom.h> // official library is not working with additional neopixels...
+#include <FastLED.h>
+#include "Button.h"
+#include "Weather.h"
+#include "StatusLed.h"
+#include "config.h"
 
+#define PIN_BTN 39
 #define PIN_WLED 33
 #define PIN_LED1 25
 #define PIN_LED2 19
@@ -9,7 +13,6 @@
 #define SPEED_LED1 3
 #define SPEED_LED2 7
 #define SPEED_LED3 9
-
 /**
 G19 デジタル入出力
 G21 デジタル入出力
@@ -30,6 +33,11 @@ const uint8_t ledSpeeds[] = {
   SPEED_LED2,
   SPEED_LED3
 };
+
+Button Btn = Button(PIN_BTN, true, 10);
+StatusLed statusLed = StatusLed(PIN_WLED);
+Weather wBiz = Weather(API_KEY);
+bool ledOn = false;
 
 // ----------------------------------------------------
 
@@ -63,66 +71,47 @@ uint8_t chaos() {
 
 // ----------------------------------------------------
 
-bool ledOn = false;
-CRGB wLeds[1];
-//NeoPixelBrightnessBus<NeoRgbFeature, Neo800KbpsMethod> strip(1, PIN_WLED);
-//RgbColor red(250, 0, 0);
-
-// ----------------------------------------------------
-
-void weatherLedTrunOff() {
-    wLeds[0] = CRGB::Black;
-    FastLED.show();
-}
-
-void weatherLedTrunOn() {
-    wLeds[0] = CRGB::White;
-    FastLED.show();
-}
-
-void weatherLedBrink() { 
-    static uint8_t brightness = 0;
-    static int diff = 1;
-   
-    wLeds[0].r = brightness;
-    wLeds[0].g = brightness;
-    wLeds[0].b = brightness;
-    FastLED.show();
-
-    if (brightness == 0) {
-      diff = 1;
-    } else if (brightness == 255) {
-      diff = -1;
+void setupWifi() {
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    
+    Serial.print("Connecting to WiFi..");
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(200);
     }
-   
-    brightness += diff;
+    Serial.println("done");
 }
 
 // ----------------------------------------------------
 
 void setup() {
-    M5.begin(true, false, false); // (Serial, I2C, NeoPixel)
+//    M5.begin(true, false, false); // (Serial, I2C, NeoPixel)
+    Serial.begin(115200);
+    pinMode(PIN_BTN, INPUT_PULLUP);
 
-    // Setup ESP32_LED_PWM
+    // Setup Illumination LED(ESP32_LED_PWM)
     for(uint8_t i=0; i<numOfLeds; i++) {
         ledcSetup(i, 12800, 8);
         ledcAttachPin(ledPins[i], i);
     }
 
-    FastLED.addLeds<WS2812, PIN_WLED, GRB>(wLeds, 1);
-//    weatherLedTrunOff();
-//    strip.Begin();
-//    strip.Show();
+    // Setup Status LED(FastLED)
+    statusLed.begin();
+    statusLed.turnOff();
 
     ledOn = false;
+
+    setupWifi();
 
     Serial.println("Initialized.");
 }
 
 void loop() {
-    M5.update();
+//    M5.update();
+    Btn.read();
     
-    if (M5.Btn.wasPressed()) {
+//    if (M5.Btn.wasPressed()) {
+    if (Btn.wasPressed()) {
         ledOn = !ledOn;
         Serial.printf("Btn: LED Status=%d\n", ledOn);
     }
@@ -135,7 +124,7 @@ void loop() {
             ledcWrite(i, 0);
         }
         // trun off Weather led
-        weatherLedTrunOff();
+        statusLed.turnOff();
         delay(100);
         return;
     }
@@ -152,12 +141,10 @@ void loop() {
             Serial.printf("LED%u: %u\n", i, value);
         }
     }
-//    if(currentMillis % 20 == 0) {
-//        weatherLedBrink();
-////        strip.SetPixelColor(0, red);
-////        strip.Show();
-//    }
-//    weatherLedTrunOn();
+    if(currentMillis % 20 == 0) {
+        statusLed.blink();
+        // statusLed.turnOff();
+    }
 
     delay(13);
 }
