@@ -1,11 +1,15 @@
 #include <M5Atom.h>
+//#include "FastLED.h" // not working with M5Atom
+//#include <NeoPixelBrightnessBus.h>
 
+#define PIN_WLED 33
 #define PIN_LED1 25
 #define PIN_LED2 19
 #define PIN_LED3 21
 #define SPEED_LED1 3
 #define SPEED_LED2 7
 #define SPEED_LED3 9
+
 /**
 G19 デジタル入出力
 G21 デジタル入出力
@@ -16,17 +20,16 @@ G33 デジタル入出力、アナログ入力
  */
 
 const uint8_t numOfLeds = 3;
-uint8_t ledPins[] = { 
+const uint8_t ledPins[] = { 
   PIN_LED1,
   PIN_LED2,
   PIN_LED3
 };
-uint8_t ledSpeeds[] = {
+const uint8_t ledSpeeds[] = {
   SPEED_LED1,
   SPEED_LED2,
   SPEED_LED3
 };
-
 
 // ----------------------------------------------------
 
@@ -61,11 +64,44 @@ uint8_t chaos() {
 // ----------------------------------------------------
 
 bool ledOn = false;
+CRGB wLeds[1];
+//NeoPixelBrightnessBus<NeoRgbFeature, Neo800KbpsMethod> strip(1, PIN_WLED);
+//RgbColor red(250, 0, 0);
+
+// ----------------------------------------------------
+
+void weatherLedTrunOff() {
+    wLeds[0] = CRGB::Black;
+    FastLED.show();
+}
+
+void weatherLedTrunOn() {
+    wLeds[0] = CRGB::White;
+    FastLED.show();
+}
+
+void weatherLedBrink() { 
+    static uint8_t brightness = 0;
+    static int diff = 1;
+   
+    wLeds[0].r = brightness;
+    wLeds[0].g = brightness;
+    wLeds[0].b = brightness;
+    FastLED.show();
+
+    if (brightness == 0) {
+      diff = 1;
+    } else if (brightness == 255) {
+      diff = -1;
+    }
+   
+    brightness += diff;
+}
 
 // ----------------------------------------------------
 
 void setup() {
-    M5.begin(true, false, true);
+    M5.begin(true, false, false); // (Serial, I2C, NeoPixel)
 
     // Setup ESP32_LED_PWM
     for(uint8_t i=0; i<numOfLeds; i++) {
@@ -73,7 +109,13 @@ void setup() {
         ledcAttachPin(ledPins[i], i);
     }
 
+    FastLED.addLeds<WS2812, PIN_WLED, GRB>(wLeds, 1);
+//    weatherLedTrunOff();
+//    strip.Begin();
+//    strip.Show();
+
     ledOn = false;
+
     Serial.println("Initialized.");
 }
 
@@ -88,10 +130,12 @@ void loop() {
     // --------
     
     if (!ledOn) { // LED turned Off
-        // turn off leds
+        // turn off Illumination leds
         for(uint8_t i=0; i<numOfLeds; i++) {
             ledcWrite(i, 0);
         }
+        // trun off Weather led
+        weatherLedTrunOff();
         delay(100);
         return;
     }
@@ -108,19 +152,12 @@ void loop() {
             Serial.printf("LED%u: %u\n", i, value);
         }
     }
+//    if(currentMillis % 20 == 0) {
+//        weatherLedBrink();
+////        strip.SetPixelColor(0, red);
+////        strip.Show();
+//    }
+//    weatherLedTrunOn();
 
     delay(13);
-    
-//    static uint8_t brightness = 0;
-//    static int diff = 1;
-//   
-//    ledcWrite(0, brightness);
-//   
-//    if (brightness == 0) {
-//      diff = 1;
-//    } else if (brightness == 255) {
-//      diff = -1;
-//    }
-//   
-//    brightness += diff;
 }
