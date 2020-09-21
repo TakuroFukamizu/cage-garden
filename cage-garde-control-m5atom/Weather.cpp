@@ -4,6 +4,7 @@
 
 Weather::Weather(String apiKey) {
     _apiKey = apiKey;
+//    _xSemaphore = xSemaphoreCreateMutex();
 }
 
 bool Weather::update() {
@@ -21,19 +22,18 @@ bool Weather::update() {
     Serial.println(httpCode);
     Serial.println(payload);
 
-    //jsonオブジェクトの作成
-    DynamicJsonBuffer jsonBuffer;
-    String json = payload;
-    JsonObject& weatherdata = jsonBuffer.parseObject(json);
-
-    //パースが成功したかどうかを確認
-    if(!weatherdata.success()){
-        Serial.println("parseObject() failed");
+    // jsonオブジェクトの作成
+    DynamicJsonDocument doc(payload.length());
+    auto error = deserializeJson(doc, payload);
+    if (error) { // パースが成功したかどうかを確認
+        Serial.print(F("deserializeJson() failed with code "));
+        Serial.println(error.c_str());
+        return false;
     }
 
     //各データを抜き出し
-    const char* weather = weatherdata["weather"][0]["main"].as<char*>();
-    const double temp = weatherdata["main"]["temp"].as<double>();
+    const char* weather = doc["weather"][0]["main"].as<char*>();
+    const double temp = doc["main"]["temp"].as<double>();
     Serial.print("weather:");
     Serial.println(weather);
     Serial.print("temperature:");
