@@ -6,11 +6,19 @@
 //#include "StatusLed.h"
 #include "config.h"
 
+// ------------------
 #define PIN_BTN 39
+
 #define PIN_WLED 33
+
 #define PIN_LED1 25
 #define PIN_LED2 19
 #define PIN_LED3 21
+
+#define PIN_MP3_RX 22
+#define PIN_MP3_RX 23
+// ------------------
+
 #define SPEED_LED1 3
 #define SPEED_LED2 7
 #define SPEED_LED3 9
@@ -44,6 +52,22 @@ bool ledOn = false;
 
 // ----------------------------------------------------
 
+CRGB _ledData[1];
+uint8_t _brightness;
+int _diff;
+
+void StatusLedTurnOff() {
+    _ledData[0] = CRGB::Black;
+    FastLED.show();
+}
+
+void StatusLedTurnOn() {
+    _ledData[0] = CRGB::White;
+    FastLED.show();
+}
+
+// ----------------------------------------------------
+
 uint8_t value = 0; // variable to keep the actual value
 int ledpin = 9; // light connected to digital pin 9
 float x = 0.1;
@@ -74,15 +98,20 @@ uint8_t chaos() {
 
 // ----------------------------------------------------
 
-void setupWifi() {
+bool setupWifi(uint8_t timeoutSec) {
+    unsigned long startTime = (millis() / 1000); 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     
     Serial.print("Connecting to WiFi..");
     while (WiFi.status() != WL_CONNECTED) {
+        if(((millis() / 1000) - startTime) > timeoutSec) {
+           return false;
+        }
         Serial.print(".");
         delay(200);
     }
     Serial.println("done");
+    return true;
 }
 
 // ----------------------------------------------------
@@ -101,10 +130,15 @@ void setup() {
 //    // Setup Status LED(FastLED)
 //    statusLed.begin();
 //    statusLed.turnOff();
+    FastLED.addLeds<WS2812, PIN_WLED, GRB>(_ledData, 1);
+    StatusLedTurnOff();
 
     ledOn = false;
 
-    setupWifi();
+    delay(100);
+    if(!setupWifi(10)) {
+        Serial.println("wifi is not connected");
+    }
 
     wBiz.update(currentWeather);
     Serial.printf("weather: %d", currentWeather.temp);
@@ -131,6 +165,7 @@ void loop() {
         }
 //        // trun off Weather led
 //        statusLed.turnOff();
+        StatusLedTurnOff();
         delay(100);
         return;
     }
@@ -151,6 +186,7 @@ void loop() {
 //        statusLed.blink();
 //        // statusLed.turnOff();
 //    }
+     StatusLedTurnOn();
 
     delay(13);
 }
