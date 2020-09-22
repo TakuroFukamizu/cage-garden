@@ -1,5 +1,4 @@
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
 #include "Weather.h"
 
 Weather::Weather(String apiKey) {
@@ -24,8 +23,8 @@ bool Weather::update(WeatherData& value) {
     Serial.println(payload);
 
     // jsonオブジェクトの作成
-    DynamicJsonDocument doc(payload.length());
-    auto error = deserializeJson(doc, payload);
+//    DynamicJsonDocument doc(payload.length());
+    auto error = deserializeJson(_doc, payload);
     if (error) { // パースが成功したかどうかを確認
         Serial.print(F("deserializeJson() failed with code "));
         Serial.println(error.c_str());
@@ -34,8 +33,8 @@ bool Weather::update(WeatherData& value) {
     }
 
     //各データを抜き出し
-    const char* weather = doc["weather"][0]["main"].as<char*>();
-    const double temp = doc["main"]["temp"].as<double>();
+    const char* weather = _doc["weather"][0]["main"].as<char*>();
+    const double temp = _doc["main"]["temp"].as<double>();
     Serial.print("weather:");
     Serial.println(weather);
     Serial.print("temperature:");

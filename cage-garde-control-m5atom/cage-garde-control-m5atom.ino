@@ -64,7 +64,7 @@ void StatusLedTurnOff() {
 }
 
 void StatusLedTurnOn() {
-    _ledData[0] = CRGB::White;
+    _ledData[0] = CRGB::DeepSkyBlue;
     FastLED.show();
 }
 
@@ -84,6 +84,24 @@ bool setupWifi(uint8_t timeoutSec) {
     }
     Serial.println("done");
     return true;
+}
+
+// ----------------------------------------------------
+
+/** 定期的に天気情報を取得する */
+void taskWeatherUpdate(void* param) {
+    unsigned long prevMillis = 0;
+    while(true) {
+        unsigned long now = millis();
+        if ((now - prevMillis) < 10000) { // every 10 sec
+            prevMillis = now;
+            vTaskDelay(1000);
+            continue;
+        }
+        // update weather from api
+        wBiz.update(currentWeather);
+        Serial.printf("weather: %d", currentWeather.temp);
+    }
 }
 
 // ----------------------------------------------------
@@ -112,6 +130,8 @@ void setup() {
         iLed.turnOnAll(64);
         return;
     }
+    // Start Update Weather Data task in The Process CPU(Core0)
+    xTaskCreatePinnedToCore(taskWeatherUpdate, "UpdateWeatherTask", 4096, NULL, 1, NULL, 0);
 
     wBiz.update(currentWeather);
     Serial.printf("weather: %d", currentWeather.temp);
