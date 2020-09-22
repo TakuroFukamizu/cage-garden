@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-enum class WeatherKind { Thunderstorm, Drizzle, Rain, Snow, Clear, Clouds };
+enum class WeatherKind { Thunderstorm, Drizzle, Rain, Snow, Clear, Clouds, Unknown };
 // https://openweathermap.org/weather-conditions
 
 struct WeatherData {
@@ -20,12 +20,14 @@ private:
     String _city;
     String _apiKey;
     
-    static const size_t _capacity = JSON_OBJECT_SIZE(13) 
+    static const size_t _capacity = JSON_OBJECT_SIZE(7) 
       + JSON_OBJECT_SIZE(2) // coord
-      + JSON_OBJECT_SIZE(4) // weather
+      + JSON_OBJECT_SIZE(4) * 4 // weather
       + JSON_OBJECT_SIZE(6) // main
       + JSON_OBJECT_SIZE(2) // wind
       + JSON_OBJECT_SIZE(5) // sys
       + 256;
     StaticJsonDocument<_capacity> _doc;
+
+    WeatherKind getKindByChar(const char* condition);
 };

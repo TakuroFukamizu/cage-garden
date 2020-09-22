@@ -68,6 +68,17 @@ void StatusLedTurnOn() {
     FastLED.show();
 }
 
+void StatusLedStatusErrorMode() {
+    while(true) {
+        _ledData[0] = CRGB::Red;
+        FastLED.show();
+        delay(100);
+        _ledData[0] = CRGB::Black;
+        FastLED.show();
+        delay(100);
+    }
+}
+
 // ----------------------------------------------------
 
 bool setupWifi(uint8_t timeoutSec) {
@@ -88,6 +99,16 @@ bool setupWifi(uint8_t timeoutSec) {
 
 // ----------------------------------------------------
 
+void updateStatusLedColorByWeather() {
+    switch(currentWeather.condition) {
+       case WeatherKind::Clear: _ledData[0] = CRGB::FairyLight; break;
+//           case WeatherKind::Clear: _ledData[0] = CRGB::DeepSkyBlue; break;
+       case WeatherKind::Clouds: _ledData[0] = CRGB::DarkGray; break;
+       case WeatherKind::Rain: _ledData[0] = CRGB::DarkBlue; break;
+       default: _ledData[0] = CRGB::Crimson; break;
+    }
+}
+
 /** 定期的に天気情報を取得する */
 void taskWeatherUpdate(void* param) {
     unsigned long prevMillis = 0;
@@ -101,6 +122,9 @@ void taskWeatherUpdate(void* param) {
         // update weather from api
         wBiz.update(currentWeather);
         Serial.printf("weather: %d", currentWeather.temp);
+
+        // update Status LED Color
+        updateStatusLedColorByWeather();
     }
 }
 
@@ -128,6 +152,7 @@ void setup() {
         Serial.println("wifi is not connected");
         iLed.blinkAll(3, 100, 128);
         iLed.turnOnAll(64);
+        StatusLedStatusErrorMode();
         return;
     }
     // Start Update Weather Data task in The Process CPU(Core0)

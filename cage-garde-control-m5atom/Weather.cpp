@@ -38,16 +38,30 @@ bool Weather::update(WeatherData& value) {
     Serial.print("weather:");
     Serial.println(weather);
     Serial.print("temperature:");
-    Serial.println(temp-273.15);
+    Serial.println(temp);
 
-    if (!strcmp(weather, "Clear")) {
-        value.condition = WeatherKind::Clear;
-    } else if (!strcmp(weather, "Clouds")) {
-        value.condition = WeatherKind::Clouds;
-    }
+    value.condition = getKindByChar(weather);
     value.temp = temp;
     value.isValid = true;
  
     http.end(); //リソースを解放
     return false;
+}
+
+WeatherKind Weather::getKindByChar(const char* condition) {
+    if (!strcmp(condition, "Thunderstorm")) {
+        return WeatherKind::Thunderstorm;
+    } else if (!strcmp(condition, "Drizzle")) {
+        return WeatherKind::Drizzle;
+    } else if (!strcmp(condition, "Rain")) {
+        return WeatherKind::Rain;
+    } else if (!strcmp(condition, "Snow")) {
+        return WeatherKind::Snow;
+    } else if (!strcmp(condition, "Clear")) {
+        return WeatherKind::Clear;
+    } else if (!strcmp(condition, "Clouds")) {
+        return WeatherKind::Clouds;
+    } else {
+        return WeatherKind::Unknown;
+    }
 }
