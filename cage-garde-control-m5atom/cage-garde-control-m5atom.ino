@@ -1,8 +1,9 @@
 //#include <M5Atom.h> // official library is not working with additional neopixels...
 #include <FastLED.h>
+#include <WiFi.h>
 #include "Button.h"
 #include "Weather.h"
-#include "StatusLed.h"
+//#include "StatusLed.h"
 #include "config.h"
 
 #define PIN_BTN 39
@@ -34,9 +35,11 @@ const uint8_t ledSpeeds[] = {
   SPEED_LED3
 };
 
+
 Button Btn = Button(PIN_BTN, true, 10);
-StatusLed statusLed = StatusLed(PIN_WLED);
+//StatusLed statusLed = StatusLed(PIN_WLED);
 Weather wBiz = Weather(API_KEY);
+WeatherData currentWeather;
 bool ledOn = false;
 
 // ----------------------------------------------------
@@ -95,13 +98,16 @@ void setup() {
         ledcAttachPin(ledPins[i], i);
     }
 
-    // Setup Status LED(FastLED)
-    statusLed.begin();
-    statusLed.turnOff();
+//    // Setup Status LED(FastLED)
+//    statusLed.begin();
+//    statusLed.turnOff();
 
     ledOn = false;
 
     setupWifi();
+
+    wBiz.update(currentWeather);
+    Serial.printf("weather: %d", currentWeather.temp);
 
     Serial.println("Initialized.");
 }
@@ -123,8 +129,8 @@ void loop() {
         for(uint8_t i=0; i<numOfLeds; i++) {
             ledcWrite(i, 0);
         }
-        // trun off Weather led
-        statusLed.turnOff();
+//        // trun off Weather led
+//        statusLed.turnOff();
         delay(100);
         return;
     }
@@ -141,10 +147,10 @@ void loop() {
             Serial.printf("LED%u: %u\n", i, value);
         }
     }
-    if(currentMillis % 20 == 0) {
-        statusLed.blink();
-        // statusLed.turnOff();
-    }
+//    if(currentMillis % 20 == 0) {
+//        statusLed.blink();
+//        // statusLed.turnOff();
+//    }
 
     delay(13);
 }

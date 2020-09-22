@@ -7,7 +7,7 @@ Weather::Weather(String apiKey) {
 //    _xSemaphore = xSemaphoreCreateMutex();
 }
 
-bool Weather::update() {
+bool Weather::update(WeatherData& value) {
     HTTPClient http;
     http.begin(endpoint + _apiKey); //URLを指定
     int httpCode = http.GET();  //GETリクエストを送信
@@ -15,6 +15,7 @@ bool Weather::update() {
 
     if (httpCode != 200) {
         http.end(); //リソースを解放
+        value.isValid = false;
         return false;
     }
 
@@ -28,6 +29,7 @@ bool Weather::update() {
     if (error) { // パースが成功したかどうかを確認
         Serial.print(F("deserializeJson() failed with code "));
         Serial.println(error.c_str());
+        value.isValid = false;
         return false;
     }
 
@@ -38,6 +40,15 @@ bool Weather::update() {
     Serial.println(weather);
     Serial.print("temperature:");
     Serial.println(temp-273.15);
+
+    if (!strcmp(weather, "Clear")) {
+        value.condition = WeatherKind::Clear;
+    } else if (!strcmp(weather, "Clouds")) {
+        value.condition = WeatherKind::Clouds;
+    }
+    value.temp = temp;
+    value.isValid = true;
  
     http.end(); //リソースを解放
+    return false;
 }
