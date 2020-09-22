@@ -98,6 +98,35 @@ uint8_t chaos() {
 
 // ----------------------------------------------------
 
+void IllumiLedInit() {
+    for(uint8_t i=0; i<numOfLeds; i++) {
+      ledcSetup(i, 12800, 8);
+      ledcAttachPin(ledPins[i], i);
+    }
+}
+void IllumiLedTrunOffAll() {
+    for(uint8_t i=0; i<numOfLeds; i++) {
+        ledcWrite(i, 0);
+    }
+}
+void IllumiLedTrunOnAll(uint8_t bri) {
+    for(uint8_t i=0; i<numOfLeds; i++) {
+        ledcWrite(i, bri);
+    }
+}
+void IllumiLedBlinkAll(uint8_t count, uint8_t bri) {
+    for(uint8_t i=0; i<count; i++) {
+        IllumiLedTrunOnAll(bri);
+        delay(500);
+        IllumiLedTrunOffAll();
+        delay(500);
+    }
+}
+
+
+
+// ----------------------------------------------------
+
 bool setupWifi(uint8_t timeoutSec) {
     unsigned long startTime = (millis() / 1000); 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -108,7 +137,10 @@ bool setupWifi(uint8_t timeoutSec) {
            return false;
         }
         Serial.print(".");
-        delay(200);
+        IllumiLedTrunOffAll();
+        delay(500);
+        IllumiLedTrunOnAll(255);
+        delay(500);
     }
     Serial.println("done");
     return true;
@@ -122,10 +154,8 @@ void setup() {
     pinMode(PIN_BTN, INPUT_PULLUP);
 
     // Setup Illumination LED(ESP32_LED_PWM)
-    for(uint8_t i=0; i<numOfLeds; i++) {
-        ledcSetup(i, 12800, 8);
-        ledcAttachPin(ledPins[i], i);
-    }
+    IllumiLedInit();
+    IllumiLedTrunOnAll(128);
 
 //    // Setup Status LED(FastLED)
 //    statusLed.begin();
@@ -136,14 +166,18 @@ void setup() {
     ledOn = false;
 
     delay(100);
-    if(!setupWifi(10)) {
+    if(!setupWifi(30)) { // try to connect in 30 sec
         Serial.println("wifi is not connected");
+        IllumiLedTrunOnAll(64);
+        return;
     }
 
     wBiz.update(currentWeather);
     Serial.printf("weather: %d", currentWeather.temp);
 
     Serial.println("Initialized.");
+    IllumiLedBlinkAll(3, 128);
+    IllumiLedTrunOffAll();
 }
 
 void loop() {
@@ -160,9 +194,7 @@ void loop() {
     
     if (!ledOn) { // LED turned Off
         // turn off Illumination leds
-        for(uint8_t i=0; i<numOfLeds; i++) {
-            ledcWrite(i, 0);
-        }
+        IllumiLedTrunOffAll();
 //        // trun off Weather led
 //        statusLed.turnOff();
         StatusLedTurnOff();
