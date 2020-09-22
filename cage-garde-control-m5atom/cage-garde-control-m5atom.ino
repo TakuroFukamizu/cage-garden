@@ -1,6 +1,7 @@
 //#include <M5Atom.h> // official library is not working with additional neopixels...
 #include <FastLED.h>
 #include <WiFi.h>
+#include <DFRobotDFPlayerMini.h>
 #include "Button.h"
 #include "Weather.h"
 #include "IllumiLed.h"
@@ -10,15 +11,20 @@
 // ------------------
 #define PIN_BTN 39
 
-#define PIN_WLED 33
+#define PIN_WLED 19
 
-#define PIN_LED1 25
-#define PIN_LED2 19
-#define PIN_LED3 21
+#define PIN_LED1 22
+#define PIN_LED2 23
+#define PIN_LED3 33
 
-#define PIN_MP3_RX 22
-#define PIN_MP3_RX 23
+#define PIN_MP3_RX 25 // DFP PIN3 TX
+#define PIN_MP3_TX 21 // DFP PIN2 RX
 // ------------------
+
+// APIで天気の取得を行う間隔(sec)
+#define WEATHER_CHECK_INTREVAL 60
+// SEの再生時間(sec)
+#define SE_LENGTH 30
 
 #define SPEED_LED1 3
 #define SPEED_LED2 7
@@ -44,6 +50,9 @@ const uint8_t ledSpeeds[] = {
   SPEED_LED3
 };
 
+//SoftwareSerial mp3Serial(PIN_MP3_RX, PIN_MP3_TX); // RX, TX
+HardwareSerial mp3Serial(1);
+DFRobotDFPlayerMini myDFPlayer;
 
 Button Btn = Button(PIN_BTN, true, 10);
 //StatusLed statusLed = StatusLed(PIN_WLED);
@@ -51,6 +60,8 @@ Weather wBiz = Weather(API_KEY);
 IllumiLed iLed = IllumiLed(3, ledPins);
 WeatherData currentWeather;
 bool ledOn = false;
+
+uint8_t currentSeIndex = 1;
 
 // ----------------------------------------------------
 
@@ -81,7 +92,7 @@ void StatusLedStatusErrorMode() {
 
 // ----------------------------------------------------
 
-bool setupWifi(uint8_t timeoutSec) {
+bool setupWifi(uint8_t timeoutSec, bool isShowStatusLed = false) {
     unsigned long startTime = (millis() / 1000); 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     
@@ -91,7 +102,7 @@ bool setupWifi(uint8_t timeoutSec) {
            return false;
         }
         Serial.print(".");
-        iLed.blinkAll(1, 500, 128);
+        if(isShowStatusLed) iLed.blinkAll(1, 500, 128);
     }
     Serial.println("done");
     return true;
@@ -101,11 +112,27 @@ bool setupWifi(uint8_t timeoutSec) {
 
 void updateStatusLedColorByWeather() {
     switch(currentWeather.condition) {
-       case WeatherKind::Clear: _ledData[0] = CRGB::FairyLight; break;
+       case WeatherKind::Clear: 
+           _ledData[0] = CRGB::FairyLight;
+           currentSeIndex = 1;
+           Serial.println("Clear, FairyLight"); 
+           break;
 //           case WeatherKind::Clear: _ledData[0] = CRGB::DeepSkyBlue; break;
-       case WeatherKind::Clouds: _ledData[0] = CRGB::DarkGray; break;
-       case WeatherKind::Rain: _ledData[0] = CRGB::DarkBlue; break;
-       default: _ledData[0] = CRGB::Crimson; break;
+       case WeatherKind::Clouds: 
+           _ledData[0] = CRGB::DarkGray; 
+           currentSeIndex = 1;
+           Serial.println("Clouds, DarkGray"); 
+           break;
+       case WeatherKind::Rain: 
+           _ledData[0] = CRGB::DarkBlue; 
+//           currentSeIndex = 2;
+           currentSeIndex = 1;
+           Serial.println("Rain, DarkBlue"); 
+           break;
+       default: 
+           _ledData[0] = CRGB::Crimson;
+           currentSeIndex = 1;
+           Serial.println("Others, Crimson");
     }
 }
 
@@ -113,18 +140,51 @@ void updateStatusLedColorByWeather() {
 void taskWeatherUpdate(void* param) {
     unsigned long prevMillis = 0;
     while(true) {
+        if(!ledOn) {
+            vTaskDelay(1000);
+            continue;
+        }
+        // -------
         unsigned long now = millis();
-        if ((now - prevMillis) < 10000) { // every 10 sec
+        if ((now - prevMillis) < (WEATHER_CHECK_INTREVAL*1000)) {
             prevMillis = now;
             vTaskDelay(1000);
             continue;
         }
+        if (WiFi.status() != WL_CONNECTED) {
+            if(!setupWifi(5, false)) {
+                prevMillis -= (WEATHER_CHECK_INTREVAL * 1000);
+                vTaskDelay(1000);
+                continue; 
+            }
+        }
+        
         // update weather from api
         wBiz.update(currentWeather);
-        Serial.printf("weather: %d", currentWeather.temp);
+        Serial.printf("temp: %lf", currentWeather.temp);
 
         // update Status LED Color
         updateStatusLedColorByWeather();
+    }
+}
+
+// ----------------------------------------------------
+void taskPlaySE(void* param) {
+    while(true) {
+        myDFPlayer.play(currentSeIndex); // 天気に合わせたSEを再生
+        vTaskDelay(SE_LENGTH * 1000);
+    }
+}
+
+// ----------------------------------------------------
+
+/** setup 内でエラー発生時の対応 */
+void errorEnd() {
+    iLed.blinkAll(3, 100, 128);
+    iLed.turnOnAll(64);
+    StatusLedStatusErrorMode();
+    while(true){
+        delay(0); // Code to compatible with ESP8266 watch dog.
     }
 }
 
@@ -148,27 +208,45 @@ void setup() {
     ledOn = false;
 
     delay(100);
-    if(!setupWifi(30)) { // try to connect in 30 sec
+    if(!setupWifi(30, true)) { // try to connect in 30 sec
         Serial.println("wifi is not connected");
-        iLed.blinkAll(3, 100, 128);
-        iLed.turnOnAll(64);
-        StatusLedStatusErrorMode();
+        errorEnd();
         return;
     }
     // Start Update Weather Data task in The Process CPU(Core0)
     xTaskCreatePinnedToCore(taskWeatherUpdate, "UpdateWeatherTask", 4096, NULL, 1, NULL, 0);
 
     wBiz.update(currentWeather);
-    Serial.printf("weather: %d", currentWeather.temp);
+    updateStatusLedColorByWeather();
+
+    // Init DFPlayer Mini
+    mp3Serial.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX);
+    delay(10);
+    if (!myDFPlayer.begin(mp3Serial)) {  //Use softwareSerial to communicate with mp3.
+        Serial.println(F("Unable to begin:"));
+        Serial.println(F("1.Please recheck the connection!"));
+        Serial.println(F("2.Please insert the SD card!"));
+        errorEnd();
+        return;
+    }
+    myDFPlayer.volume(10);
+    // Start Update Weather Data task in The Application CPU(Core0)
+    xTaskCreatePinnedToCore(taskPlaySE, "PlaySETask", 4096, NULL, 2, NULL, 0);
+    myDFPlayer.play(1);
 
     Serial.println("Initialized.");
-    iLed.blinkAll(3, 500, 128);
     iLed.turnOffAll();
+    StatusLedTurnOff();
 }
 
 void loop() {
 //    M5.update();
     Btn.read();
+
+//    if(currentMillis % 20 == 0) {
+//        statusLed.blink();
+//        // statusLed.turnOff();
+//    }]
     
 //    if (M5.Btn.wasPressed()) {
     if (Btn.wasPressed()) {
@@ -198,11 +276,13 @@ void loop() {
             iLed.lightYuragi(i);
         }
     }
+    // TODO: blink status led slowly
 //    if(currentMillis % 20 == 0) {
 //        statusLed.blink();
 //        // statusLed.turnOff();
 //    }
-     StatusLedTurnOn();
+//     StatusLedTurnOn();
+    FastLED.show();
 
     delay(13);
 }
