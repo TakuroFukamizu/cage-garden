@@ -3,7 +3,8 @@
 #include <WiFi.h>
 #include "Button.h"
 #include "Weather.h"
-//#include "StatusLed.h"
+#include "IllumiLed.h"
+//#include "StatusLed.h" // not working
 #include "config.h"
 
 // ------------------
@@ -47,6 +48,7 @@ const uint8_t ledSpeeds[] = {
 Button Btn = Button(PIN_BTN, true, 10);
 //StatusLed statusLed = StatusLed(PIN_WLED);
 Weather wBiz = Weather(API_KEY);
+IllumiLed iLed = IllumiLed(3, ledPins);
 WeatherData currentWeather;
 bool ledOn = false;
 
@@ -68,65 +70,6 @@ void StatusLedTurnOn() {
 
 // ----------------------------------------------------
 
-uint8_t value = 0; // variable to keep the actual value
-int ledpin = 9; // light connected to digital pin 9
-float x = 0.1;
-float x1 = 0.1;
-
-uint8_t chaos() {
-    // 1/f yuragi
-    x = x1;
-    if(x < 0.5){
-        x = x + 2 * x * x;
-    }
-    else {
-        x = x - 2 * (1.0 - x) * (1.0 - x);
-    }
-  
-    if(x < 0.08){
-        x = (float)(random(20,80))/1023;
-    }
-    if(x > 0.995){
-        x = (float)(random(128,253))/1023;
-    }
-  
-    x1 = x;
-    x = x * 255;
-  
-    return (uint8_t)x;
-}
-
-// ----------------------------------------------------
-
-void IllumiLedInit() {
-    for(uint8_t i=0; i<numOfLeds; i++) {
-      ledcSetup(i, 12800, 8);
-      ledcAttachPin(ledPins[i], i);
-    }
-}
-void IllumiLedTrunOffAll() {
-    for(uint8_t i=0; i<numOfLeds; i++) {
-        ledcWrite(i, 0);
-    }
-}
-void IllumiLedTrunOnAll(uint8_t bri) {
-    for(uint8_t i=0; i<numOfLeds; i++) {
-        ledcWrite(i, bri);
-    }
-}
-void IllumiLedBlinkAll(uint8_t count, uint8_t bri) {
-    for(uint8_t i=0; i<count; i++) {
-        IllumiLedTrunOnAll(bri);
-        delay(500);
-        IllumiLedTrunOffAll();
-        delay(500);
-    }
-}
-
-
-
-// ----------------------------------------------------
-
 bool setupWifi(uint8_t timeoutSec) {
     unsigned long startTime = (millis() / 1000); 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -137,10 +80,7 @@ bool setupWifi(uint8_t timeoutSec) {
            return false;
         }
         Serial.print(".");
-        IllumiLedTrunOffAll();
-        delay(500);
-        IllumiLedTrunOnAll(255);
-        delay(500);
+        iLed.blinkAll(1, 500, 128);
     }
     Serial.println("done");
     return true;
@@ -154,8 +94,8 @@ void setup() {
     pinMode(PIN_BTN, INPUT_PULLUP);
 
     // Setup Illumination LED(ESP32_LED_PWM)
-    IllumiLedInit();
-    IllumiLedTrunOnAll(128);
+    iLed.init();
+    iLed.turnOnAll(128);
 
 //    // Setup Status LED(FastLED)
 //    statusLed.begin();
@@ -168,7 +108,8 @@ void setup() {
     delay(100);
     if(!setupWifi(30)) { // try to connect in 30 sec
         Serial.println("wifi is not connected");
-        IllumiLedTrunOnAll(64);
+        iLed.blinkAll(3, 100, 128);
+        iLed.turnOnAll(64);
         return;
     }
 
@@ -176,8 +117,8 @@ void setup() {
     Serial.printf("weather: %d", currentWeather.temp);
 
     Serial.println("Initialized.");
-    IllumiLedBlinkAll(3, 128);
-    IllumiLedTrunOffAll();
+    iLed.blinkAll(3, 500, 128);
+    iLed.turnOffAll();
 }
 
 void loop() {
@@ -194,7 +135,7 @@ void loop() {
     
     if (!ledOn) { // LED turned Off
         // turn off Illumination leds
-        IllumiLedTrunOffAll();
+        iLed.turnOffAll();
 //        // trun off Weather led
 //        statusLed.turnOff();
         StatusLedTurnOff();
@@ -209,9 +150,7 @@ void loop() {
 
     for(uint8_t i=0; i<numOfLeds; i++) {
         if(currentMillis % ledSpeeds[i] == 0) {
-            value = chaos();
-            ledcWrite(i, value);
-            Serial.printf("LED%u: %u\n", i, value);
+            iLed.lightYuragi(i);
         }
     }
 //    if(currentMillis % 20 == 0) {
