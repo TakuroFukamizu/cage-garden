@@ -25,6 +25,8 @@
 #define WEATHER_CHECK_INTREVAL 60
 // SEの再生時間(sec)
 #define SE_LENGTH 30
+// SEのボリューム (0~30).
+#define SE_VOLUME 20 
 
 #define SPEED_LED1 3
 #define SPEED_LED2 7
@@ -50,6 +52,10 @@ const uint8_t ledSpeeds[] = {
   SPEED_LED3
 };
 
+// Unknown, Clear, Clouds, Rain
+const CRGB refColors[] = { CRGB::Crimson, CRGB::FairyLight, CRGB::DarkGray, CRGB::DarkBlue };
+const uint8_t refSounds[] = { 1, 1, 2, 1 };
+
 //SoftwareSerial mp3Serial(PIN_MP3_RX, PIN_MP3_TX); // RX, TX
 HardwareSerial mp3Serial(1);
 DFRobotDFPlayerMini myDFPlayer;
@@ -68,6 +74,10 @@ uint8_t currentSeIndex = 1;
 CRGB _ledData[1];
 uint8_t _brightness;
 int _diff;
+bool _tick = false;
+float _tickCount = 0.0;
+
+CRGB currentLedColor;
 
 void StatusLedTurnOff() {
     _ledData[0] = CRGB::Black;
@@ -87,6 +97,30 @@ void StatusLedStatusErrorMode() {
         _ledData[0] = CRGB::Black;
         FastLED.show();
         delay(100);
+    }
+}
+
+void StatusLedTickTack() {
+    _ledData[0] = currentLedColor;
+    
+    float weight = 1.0 - _tickCount;
+    _ledData[0].r *= weight;
+    _ledData[0].g *= weight;
+    _ledData[0].b *= weight;
+    if (!_tick) {
+        _tickCount = _tickCount + 1.0;
+    } else {
+        _tickCount = _tickCount - 1.0;
+    }
+    FastLED.show();
+    
+    if (4.0 < _tickCount) {
+        _tickCount = 4.0;
+        _tick = true;
+    }
+    if (_tickCount < 0.0) {
+        _tickCount = 0.0;
+        _tick = false;
     }
 }
 
@@ -111,29 +145,16 @@ bool setupWifi(uint8_t timeoutSec, bool isShowStatusLed = false) {
 // ----------------------------------------------------
 
 void updateStatusLedColorByWeather() {
+    uint8_t i = 0;
     switch(currentWeather.condition) {
-       case WeatherKind::Clear: 
-           _ledData[0] = CRGB::FairyLight;
-           currentSeIndex = 1;
-           Serial.println("Clear, FairyLight"); 
-           break;
-//           case WeatherKind::Clear: _ledData[0] = CRGB::DeepSkyBlue; break;
-       case WeatherKind::Clouds: 
-           _ledData[0] = CRGB::DarkGray; 
-           currentSeIndex = 1;
-           Serial.println("Clouds, DarkGray"); 
-           break;
-       case WeatherKind::Rain: 
-           _ledData[0] = CRGB::DarkBlue; 
-//           currentSeIndex = 2;
-           currentSeIndex = 1;
-           Serial.println("Rain, DarkBlue"); 
-           break;
-       default: 
-           _ledData[0] = CRGB::Crimson;
-           currentSeIndex = 1;
-           Serial.println("Others, Crimson");
+       case WeatherKind::Clear: i=1; break;
+       case WeatherKind::Clouds: i=2; break;
+       case WeatherKind::Rain: i=3; break;
+       default: i=0;
     }
+    currentLedColor = refColors[i];
+    currentSeIndex = refSounds[i];
+    Serial.printf("updateStatusLedColorByWeather: i=%d, se=%d\n", i, currentSeIndex);
 }
 
 /** 定期的に天気情報を取得する */
@@ -172,6 +193,8 @@ void taskWeatherUpdate(void* param) {
 void taskPlaySE(void* param) {
     while(true) {
         myDFPlayer.play(currentSeIndex); // 天気に合わせたSEを再生
+//        myDFPlayer.loop(1);
+        Serial.printf("play se: %d", currentSeIndex);
         vTaskDelay(SE_LENGTH * 1000);
     }
 }
@@ -203,10 +226,9 @@ void setup() {
 //    statusLed.begin();
 //    statusLed.turnOff();
     FastLED.addLeds<WS2812, PIN_WLED, GRB>(_ledData, 1);
-    StatusLedTurnOff();
+    StatusLedTurnOn();
 
-    ledOn = false;
-
+    // setup wifi
     delay(100);
     if(!setupWifi(30, true)) { // try to connect in 30 sec
         Serial.println("wifi is not connected");
@@ -229,10 +251,12 @@ void setup() {
         errorEnd();
         return;
     }
-    myDFPlayer.volume(10);
+    myDFPlayer.volume(SE_VOLUME);
     // Start Update Weather Data task in The Application CPU(Core0)
     xTaskCreatePinnedToCore(taskPlaySE, "PlaySETask", 4096, NULL, 2, NULL, 0);
-    myDFPlayer.play(1);
+//    myDFPlayer.play(1);
+
+    ledOn = false;
 
     Serial.println("Initialized.");
     iLed.turnOffAll();
@@ -277,12 +301,9 @@ void loop() {
         }
     }
     // TODO: blink status led slowly
-//    if(currentMillis % 20 == 0) {
-//        statusLed.blink();
-//        // statusLed.turnOff();
-//    }
-//     StatusLedTurnOn();
-    FastLED.show();
+    if(currentMillis % 9 == 0) {
+        StatusLedTickTack();
+    }
 
     delay(13);
 }
