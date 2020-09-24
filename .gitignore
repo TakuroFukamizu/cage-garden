@@ -33,3 +33,5 @@
 
 config.h
 .vscode
+
+.DS_Store
